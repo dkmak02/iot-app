@@ -41,7 +41,7 @@ export default function BluetoothComponent({route}) {
     const fetchData = async () => {
       try {
         const response = await fetch(
-          'https://data-esp32-api.azurewebsites.net/api/getDevices?code=2wEzjUqlpYsKuxWnL_Khl6vICPv4er_AFmQv-hvRm21wAzFuoyuJ_g==',
+          'https://data-esp32-api.azurewebsites.net/api/getDevices',
           {
             method: 'POST',
             headers: {
@@ -73,7 +73,7 @@ export default function BluetoothComponent({route}) {
   const checkIfTwinIsConnected = async () => {
     try {
       const response = await fetch(
-        'https://data-esp32-api.azurewebsites.net/api/getConnectionState?code=4tQD-5loqODitJS4cSSAAlzc1Jri1ZkEXza59CVDPSUhAzFuExlbeg==',
+        'https://data-esp32-api.azurewebsites.net/api/getConnectionState',
         {
           method: 'POST',
           headers: {
@@ -101,7 +101,7 @@ export default function BluetoothComponent({route}) {
     }
     try {
       const response = await fetch(
-        'https://data-esp32-api.azurewebsites.net/api/deleteByButton?code=KjMoMVZKUbyKh9H4z8iHQEDP8jX38aAkc9UPXWugrJJYAzFuM6sOPQ==',
+        'https://data-esp32-api.azurewebsites.net/api/deleteByButton',
         {
           method: 'POST',
           headers: {
@@ -140,7 +140,7 @@ export default function BluetoothComponent({route}) {
     // const twinConnected = await checkIfTwinIsConnected(device.name);
     try {
       await fetch(
-        'https://data-esp32-api.azurewebsites.net/api/updateDeviceTwin?code=_V5s61BrUro6npiTF4rwa2b2zYdlp5n5MxPh839-0CxLAzFuR54SDg==',
+        'https://data-esp32-api.azurewebsites.net/api/updateDeviceTwin',
         {
           method: 'POST',
           headers: {
@@ -157,7 +157,7 @@ export default function BluetoothComponent({route}) {
     }
     try {
       await fetch(
-        'https://data-esp32-api.azurewebsites.net/api/removeDevice?code=uU4bR1oNHLbmZTjqBUGNcI72tXWaUe5IP19cT0qjRUdVAzFuWDYlyA==',
+        'https://data-esp32-api.azurewebsites.net/api/removeDevice',
         {
           method: 'POST',
           headers: {
@@ -173,7 +173,7 @@ export default function BluetoothComponent({route}) {
     }
     try {
       await fetch(
-        'https://data-esp32-api.azurewebsites.net/api/setDesiredOnReported?code=wLvwqkFijfVtpV3Z3Sw3wwil-wye4oNA4ZnuVStiueHIAzFuVWbgbA==',
+        'https://data-esp32-api.azurewebsites.net/api/setDesiredOnReported',
         {
           method: 'POST',
           headers: {
@@ -193,7 +193,7 @@ export default function BluetoothComponent({route}) {
   const setUsersDeviceInDb = async (deviceId, deviceName) => {
     try {
       await fetch(
-        'https://data-esp32-api.azurewebsites.net/api/AddDevice?code=QXavj55oAx0dPu-lDPJ4SqMyWqTDFZnR3puuXBr_UIXhAzFuupm23Q==',
+        'https://data-esp32-api.azurewebsites.net/api/AddDevice',
         {
           method: 'POST',
           headers: {
