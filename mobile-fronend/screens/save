@@ -1,0 +1,344 @@
+/* eslint-disable prettier/prettier */
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable react/react-in-jsx-scope */
+import {useState, useEffect, useRef} from 'react';
+import {
+  FlatList,
+  PermissionsAndroid,
+  StyleSheet,
+  Text,
+  View,
+  TextInput,
+  Button,
+  TouchableOpacity,
+} from 'react-native';
+import {BleManager} from 'react-native-ble-plx';
+import WifiManager from 'react-native-wifi-reborn';
+import {btoa} from 'react-native-quick-base64';
+const bleManager = new BleManager();
+
+export default function BluetoothComponent({route}) {
+  const [deviceList, setDeviceList] = useState([]);
+  const [selectedDevice, setSelectedDevice] = useState(null);
+  const [ssid, setSSID] = useState('');
+  const [password, setPassword] = useState('');
+  const [connected, setConnectionStatus] = useState(false);
+  const [possibleToConnect, setPossibleToConnect] = useState(true);
+  const [apiData, setApiData] = useState(null);
+  const [temp, setTemp] = useState(null);
+  //FUNCKJA DEKODUJĄCA
+  function xorDecrypt(data, key) {
+    const keyLen = key.length;
+    let decryptedData = '';
+
+    for (let i = 0; i < data.length; i++) {
+      const charCode = data.charCodeAt(i) ^ key.charCodeAt(i % keyLen);
+      decryptedData += String.fromCharCode(charCode);
+    }
+
+    return decryptedData;
+  }
+  //POBIERANIE DANYCH Z API - NAJNOWSZA TEMERATURA
+  const fetchDataFromApi = async () => {
+    try {
+      const response = await fetch(
+        'https://data-esp32-api.azurewebsites.net/api/getData',
+      );
+      const data = await response.json();
+      let {temp, enqueuedTime} = data;
+      const timeDate = new Date(enqueuedTime);
+      const nowDate = new Date();
+      if (nowDate - timeDate <= 4000) {
+        temp = xorDecrypt(temp, email);
+        setTemp(`${temp}C`);
+      } else {
+        setTemp('Data is too old');
+      }
+      setApiData(data);
+    } catch (error) {
+      console.error('Error fetching data from the API', error);
+    }
+  };
+  useEffect(() => {
+    const fetchDataInterval = setInterval(() => {
+      fetchDataFromApi();
+    }, 500);
+    return () => clearInterval(fetchDataInterval);
+  }, []);
+  const {email} = route.params;
+  const searchForDevice = () => {
+    bleManager.startDeviceScan(null, null, (error, device) => {
+      if (error) {
+        console.error(error);
+        return;
+      }
+      if (device.name === 'esp32_9C7518') {
+        bleManager.stopDeviceScan();
+        setDeviceList([device]);
+      }
+    });
+  };
+  //POZWOLENIE NA LOKAZLIZACJE  - NIE WIEM CZEMU ALE POTRSEBNE
+  const requestLocationPermission = async () => {
+    try {
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+        {
+          title: 'Location Permission',
+          message: 'This app needs location permission to fetch WiFi details.',
+          buttonNeutral: 'Ask Me Later',
+          buttonNegative: 'Cancel',
+          buttonPositive: 'OK',
+        },
+      );
+
+      if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+        console.log('Location permission granted');
+        return true;
+      } else {
+        console.log('Location permission denied');
+        return false;
+      }
+    } catch (err) {
+      console.warn(err);
+      return false;
+    }
+  };
+  //POBIERANIE SSID WIFI
+  const fetchWifiDetails = async () => {
+    try {
+      const locationPermission = await requestLocationPermission();
+
+      if (locationPermission) {
+        const currentSsid = await WifiManager.getCurrentWifiSSID();
+        setSSID(currentSsid);
+      } else {
+        console.warn('Location permission not granted');
+      }
+    } catch (error) {
+      console.error('Cannot fetch WiFi details', error);
+    }
+  };
+  //POBIERANIE DANYCH O AKTUALNIE PODLACZONYM UZYTKOWNIKU
+  const connectedUser = async () => {
+    try {
+      const response = await fetch(
+        'https://data-esp32-api.azurewebsites.net/api/getConnected?',
+      );
+      const data = await response.json();
+      if (data.email === 'none' || data.email === email) {
+        setPossibleToConnect(true);
+        if (data.email === email) {
+          setConnectionStatus(true);
+          setConnectedUser(email);
+        }
+      } else {
+        setPossibleToConnect(false);
+      }
+    } catch (error) {
+      console.error('Error fetching connected user', error);
+    }
+  };
+  useEffect(() => {
+    connectedUser();
+    fetchWifiDetails();
+    searchForDevice();
+  }, []);
+  //OBSUŁGA POŁĄCZENIA Z URZĄDZENIEM ESP32
+  const handleConnect = async () => {
+    if (!ssid || !password) {
+      alert('Missing SSID or password');
+      return;
+    }
+    const serviceUUID = '19b10000-e8f2-537e-4f6c-d104768a1214';
+    const writeCharacteristicUUID = '19b10002-e8f2-537e-4f6c-d104768a1214';
+    const device = await bleManager
+      .connectToDevice(selectedDevice.id)
+      .then(d => {
+        return d.discoverAllServicesAndCharacteristics();
+      })
+      .then(d => {
+        return d.services();
+      })
+      .then(services => {
+        return services.find(s => s.uuid === serviceUUID);
+      })
+      .then(service => {
+        return service.characteristics();
+      })
+      .then(characteristics => {
+        let chars = characteristics.find(
+          c => c.uuid === writeCharacteristicUUID,
+        );
+        return chars;
+      });
+    //h#Ts%44n7c61
+    const dataToSend = `6G-sila,ciwa9631,${email},${email.length}`;
+    const base64Data = btoa(dataToSend);
+    await device.writeWithResponse(base64Data);
+    setConnectionStatus(true);
+    setConnectedUser(email);
+  };
+  //USTAWIANIE AKTUALNIE PODLACZONEGO UZYTKOWNIKA
+  const setConnectedUser = async email => {
+    try {
+      const response = await fetch(
+        'https://data-esp32-api.azurewebsites.net/api/setUser?code=shF8UYVkvOwLNWPRKfgyl_7Ja3LSXVNHCX2ya6ER4OvdAzFuFTkthQ==',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({email}),
+        },
+      );
+    } catch (error) {
+      console.error('Error setting connected user', error);
+    }
+  };
+  const handleDeviceSelect = device => {
+    setSelectedDevice(device);
+  };
+  //ROZŁĄCZANIE Z URZĄDZENIEM ESP32
+  const handleDisconnect = async () => {
+    setConnectedUser('none');
+    setConnectionStatus(false);
+  };
+  return (
+    <View style={styles.container}>
+      {selectedDevice ? (
+        <View style={styles.formContainer}>
+          <Text style={styles.formLabel}>SSID:</Text>
+          <TextInput
+            style={styles.formInput}
+            value={ssid}
+            onChangeText={text => setSSID(text)}
+          />
+
+          <Text style={styles.formLabel}>Password:</Text>
+          <TextInput
+            style={styles.formInput}
+            secureTextEntry
+            value={password}
+            onChangeText={text => setPassword(text)}
+          />
+
+          <Button title={'Connect'} onPress={handleConnect} />
+
+          <Button title="Close" onPress={() => setSelectedDevice(null)} />
+        </View>
+      ) : (
+        <View>
+          {connected && (
+            <View style={styles.formContainer}>
+              <Button title="Disconnect" onPress={handleDisconnect} />
+            </View>
+          )}
+          {!possibleToConnect ? (
+            <View style={styles.formContainer}>
+              <Text style={styles.errorText}>
+                Device is already connected to another user.
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              data={deviceList}
+              keyExtractor={item => item.id}
+              renderItem={({item}) => (
+                <TouchableOpacity
+                  style={styles.device}
+                  onPress={() => handleDeviceSelect(item)}>
+                  <Text>
+                    {item.name} (ID: {item.id})
+                  </Text>
+                </TouchableOpacity>
+              )}
+            />
+          )}
+          {apiData && connected && (
+            <View style={styles.centeredContent}>
+              <View style={styles.apiTile}>
+                <Text style={styles.apiTileText}>Temperature</Text>
+                <Text>{temp}</Text>
+              </View>
+            </View>
+          )}
+        </View>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: 'black',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  formContainer: {
+    backgroundColor: 'white',
+    padding: 20,
+    borderRadius: 10,
+    elevation: 5,
+    width: '90%',
+    marginBottom: 20,
+  },
+  formLabel: {
+    color: 'black',
+    marginBottom: 5,
+  },
+  formInput: {
+    height: 40,
+    borderColor: 'gray',
+    borderWidth: 1,
+    marginBottom: 10,
+    paddingLeft: 10,
+    backgroundColor: 'white',
+    color: 'black',
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  connectButton: {
+    backgroundColor: 'green',
+  },
+  closeButton: {
+    backgroundColor: 'red',
+  },
+  connectionStatus: {
+    color: 'white',
+    marginBottom: 10,
+  },
+  device: {
+    backgroundColor: 'lightgrey',
+    padding: 10,
+    marginVertical: 5,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    width: '90%',
+  },
+  centeredContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  apiTile: {
+    backgroundColor: 'grey',
+    padding: 20,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  apiTileText: {
+    fontSize: 35,
+    fontWeight: 'bold',
+  },
+  errorText: {
+    color: 'red',
+    textAlign: 'center',
+    marginTop: 10,
+  },
+});
